@@ -18,7 +18,7 @@ def getMaxima(x):
     loc = np.where(((x >= x1) & (x>x2)) | ((x>x1) & (x>=x2)))[0]
     return loc
 
-def emd(x, Niter=10, ImfMaxNum=100):
+def emd(x, Niter=10, ImfMaxNum=100, verbose = True, doplots = 2):
     Ntps = 4
     L = len(x)
     # Mirror ends of array to avoid edge effects
@@ -29,59 +29,67 @@ def emd(x, Niter=10, ImfMaxNum=100):
     xorig = xr.copy()
     xresid = xr.copy()
 
-    yoffset = xr.max() - x.min()
-    pl.figure(1)
-    pl.clf()
-    pl.plot(t, xr, 'k-')
-    
-    print 'Empirical mode decomposition'
+    if doplots >= 1:
+        yoffset = xr.max() - x.min()
+        pl.figure(1)
+        pl.clf()
+        pl.plot(t, xr, 'k-')
+
+    if verbose: print 'Empirical mode decomposition'
     endFlag = False
     for ct in range(ImfMaxNum):
-        print 'IMF %d' % (ct+1)
+        if verbose: print 'IMF %d' % (ct+1)
         for n in range(Niter):
-            print 'IMF %d, iter %d' % (ct+1,n+1)
-            pl.figure(2)
-            pl.clf()
-            pl.plot(t,xr,'k-')
+            if verbose: print 'IMF %d, iter %d' % (ct+1,n+1)
+            if doplots == 2:
+                pl.figure(2)
+                pl.clf()
+                pl.plot(t,xr,'k-')
             # Find upper turning points
             l = getMaxima(xr)
             # Not confident about turning points beyond original edges
             f = np.where((abs(l-xinds[0]) > 2) & (abs(l-xinds[1]) > 2))[0]
             l = l[f]
-            pl.plot(t[l], xr[l], 'r.')
-            print len(l)
+            if doplots == 2:
+                pl.plot(t[l], xr[l], 'r.')
             if (len(l) < Ntps): # Not enough turning points left
-                print 'Not enough turning points left (top)!'
+                if verbose:
+                    print 'Not enough turning points left (top)!'
                 endFlag = True
             else:
                 # Fit spline to upper envelope
                 tck = interpolate.splrep(t[l], xr[l], s=0)
                 yu = interpolate.splev(t, tck, ext = 0)
-                pl.plot(t,yu,'r-')
+                if doplots == 2:
+                    pl.plot(t,yu,'r-')
             # Find lower turning points
             l = getMaxima(-xr)
             # Not confident about turning points beyond original edges
             f = np.where((abs(l-xinds[0]) > 2) & (abs(l-xinds[1]) > 2))[0]
             l = l[f]
-            pl.plot(t[l], xr[l],'b.')
-            print len(l)
+            if doplots == 2:
+                pl.plot(t[l], xr[l],'b.')
             if (len(l) < Ntps): # Not enough turning points left
-                print 'Not enough turning points left (bottom)!'
+                if verbose:
+                    print 'Not enough turning points left (bottom)!'
                 endFlag = True
                 break
             else:
                 # Fit spline to lower envelope
                 tck = interpolate.splrep(t[l], xr[l], s=0)
                 yl = interpolate.splev(t, tck, ext = 0)
-                pl.plot(t,yl,'b-')
+                if doplots == 2:
+                    pl.plot(t,yl,'b-')
             # Subtract midpoint of envelope
             m = (yu+yl)/2
-            pl.plot(t, m, 'k--')
+            if doplots == 2:
+                pl.plot(t, m, 'k--')
             xr -= m
-            pl.plot(t, xr + 1, '-', c = 'grey')
-            pl.xlim(t[xinds[0]], t[xinds[1]])
-            pl.ylim(-0.5,1.5)
-            # raw_input('Next iteration?')
+            if doplots == 2:
+                pl.plot(t, xr + 1, '-', c = 'grey')
+                pl.xlim(t[xinds[0]], t[xinds[1]])
+                pl.ylim(-0.5,1.5)
+                raw_input('Next iteration?')
         if endFlag == True:
             break
         # Store current envelope midpoint, extent and IMF
@@ -98,12 +106,13 @@ def emd(x, Niter=10, ImfMaxNum=100):
             imf = np.concatenate((imf, xr.reshape((LL,1))), axis = 1)
         xresid -= xr
         xr = xresid.copy()
-        pl.figure(1)
-        pl.plot(t, imf[:,-1] + ct+1, 'r-')
-        pl.plot(t, xr + ct+1.5, 'b-')
-        pl.xlim(t[xinds[0]], t[xinds[1]])
-        pl.ylim(-0.5, ct+2)
-        # raw_input('Next IMF?')
+        if doplots >= 1:
+            pl.figure(1)
+            pl.plot(t, imf[:,-1] + ct+1, 'r-')
+            pl.plot(t, xr + ct+1.5, 'b-')
+            pl.xlim(t[xinds[0]], t[xinds[1]])
+            pl.ylim(-0.5, ct+2)
+            raw_input('Next IMF?')
     imf = imf[xinds[0]:xinds[1],:]
     xresid = xresid[xinds[0]:xinds[1]]
     return imf, xresid, mx, rx
@@ -124,18 +133,4 @@ def freqAmp(f, t):
     w = dtheta/dt
     freq = w / 2 / np.pi
     return freq, r
-
-def test():
-    t, f = np.genfromtxt('lightcurve_0012.txt').T
-    f -= f.min()
-    f /= f.max()
-    f -= 0.5
-    res = emd(f)
-    imf1 = res[0][:,0].flatten()
-    freq, amp = freqAmp(imf1, t)
-    pl.figure(3)
-    pl.clf()
-    pl.scatter(t[:-1], freq, c = amp, s = 5, edgecolors='none')
-    return
-
 
